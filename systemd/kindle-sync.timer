@@ -1,0 +1,10 @@
+[Unit]
+Description=Check whether the Kindle is plugged in
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=2min
+Unit=kindle-sync.service
+
+[Install]
+WantedBy=timers.target

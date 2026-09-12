@@ -1,0 +1,12 @@
+# One feed per line:  Name | URL
+# Lines starting with # are ignored.
+#
+# Check a feed before adding it -- it reports exactly why one will not work:
+#     ~/kindle-news/venv/bin/python ~/kindle-news/extract.py --check <url>
+#
+# These four are technology examples. Replace them with your own.
+
+Hacker News (best) | https://hnrss.org/best
+Lobsters (top week) | https://lobste.rs/top/1w.rss
+Ars Technica | https://feeds.arstechnica.com/arstechnica/index
+IEEE Spectrum | https://spectrum.ieee.org/feeds/feed.rss

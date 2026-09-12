@@ -1,0 +1,6 @@
+# Generated single-file installer, built by make-standalone.sh
+kindle.sh
+# Local runtime artefacts, in case anyone works inside a clone
+digest.json
+venv/
+*.mobi

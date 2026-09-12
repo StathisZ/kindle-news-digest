@@ -1,0 +1,10 @@
+[Unit]
+Description=Build the weekly digest on Saturday morning
+
+[Timer]
+OnCalendar=Sat 07:00
+Persistent=true
+Unit=kindle-news.service
+
+[Install]
+WantedBy=timers.target

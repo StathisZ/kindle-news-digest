@@ -1,0 +1,23 @@
+import json, os
+from calibre.web.feeds.news import BasicNewsRecipe
+
+
+class Digest(BasicNewsRecipe):
+    """Packages the already-extracted articles from extract.py.
+
+    use_embedded_content stops calibre fetching anything, so its built-in
+    readability never runs. All extraction happened in extract.py.
+    """
+    title = 'Weekly Digest'
+    description = 'Most-read tech and policy analysis of the past week'
+    language = 'en'
+
+    use_embedded_content = True
+    no_stylesheets = True
+    compress_news_images = True
+
+    def parse_index(self):
+        path = os.path.join(os.path.expanduser('~'), 'kindle-news', 'digest.json')
+        with open(path, encoding='utf-8') as f:
+            data = json.load(f)
+        return [(s['title'], s['articles']) for s in data['sections']]
