@@ -5,7 +5,7 @@ Reads the feeds, pulls each article down to its text with trafilatura, drops
 whatever fails to extract, and writes digest.json for digest.recipe to package.
 calibre never fetches a page, so its weak built-in readability never runs.
 """
-import json, os, re, html, sys, urllib.request, urllib.error
+import json, os, re, html, sys, urllib.parse, urllib.request, urllib.error
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 
@@ -71,30 +71,68 @@ def embedded(entry):
     return None
 
 
-def extract(entry):
-    """Return clean article HTML, or None with a reason."""
+def site(url):
+    h = urllib.parse.urlsplit(url or "").hostname or ""
+    for prefix in ("www.", "feeds.", "feed.", "rss."):
+        if h.startswith(prefix):
+            h = h[len(prefix):]
+    return h
+
+
+def same_site(a, b):
+    a, b = site(a), site(b)
+    return bool(a and b) and (a.endswith(b) or b.endswith(a))
+
+
+def author_of(entry, feed_url, page):
+    """The article's writer, or "" if unknown.
+
+    A publisher's own feed names the writer, and does so better than the page
+    metadata does (Ars: "Alec MacGillis, ProPublica" against just "ProPublica").
+    An aggregator's feed names whoever submitted the link, which is the wrong
+    person entirely -- so for off-site articles only the page's own byline is
+    trusted, and there is no fallback to the submitter.
+    """
+    name = ""
+    if same_site(entry.get("link"), feed_url):
+        name = entry.get("author") or ""
+    if not name and page:
+        meta = trafilatura.extract_metadata(page, default_url=entry.get("link"))
+        name = (meta.author or "") if meta else ""
+    name = re.sub(r"\s+", " ", name).strip()
+    return re.sub(r"^by\s+", "", name, flags=re.I)
+
+
+def extract(entry, feed_url=""):
+    """Return (clean article HTML, reason, author); HTML is None on failure."""
     url = entry.get("link")
     if not url:
-        return None, "no url"
+        return None, "no url", ""
 
+    page = None
     src = embedded(entry)          # free: no fetch needed
     if src is None:
-        src = fetch(url)
+        src = page = fetch(url)
         if src is None:
-            return None, "fetch blocked"
+            return None, "fetch blocked", ""
 
     out = trafilatura.extract(src, output_format="html", url=url,
                               include_comments=False, include_tables=True,
                               favor_precision=True)
     if not out:
-        return None, "no article found"
+        return None, "no article found", ""
 
     d, chars = density(out)
     if chars < MIN_CHARS:
-        return None, f"too short ({chars}c)"
+        return None, f"too short ({chars}c)", ""
     if d > MAX_DENSITY:
-        return None, f"still furniture (density {d:.2f})"
-    return out, f"{chars}c density {d:.2f}"
+        return None, f"still furniture (density {d:.2f})", ""
+
+    # Gate first, byline after, so the name never affects the quality checks.
+    author = author_of(entry, feed_url, page)
+    if author:
+        out = f"<p><strong>By {html.escape(author)}</strong></p>\n" + out
+    return out, f"{chars}c density {d:.2f}", author
 
 
 
@@ -121,9 +159,10 @@ def check(url):
 
     results = []
     for e in parsed.entries[:3]:
-        body, why = extract(e)
+        body, why, author = extract(e, url)
         title = re.sub(r"\s+", " ", e.get("title", "?")).strip()[:44]
-        print(f"    {'ok  ' if body else 'FAIL'}  {title:<46} {why}")
+        by = f"  by {author}" if author else ("  (no author)" if body else "")
+        print(f"    {'ok  ' if body else 'FAIL'}  {title:<46} {why}{by}")
         results.append((body is not None, why))
 
     ok = sum(1 for good, _ in results if good)
@@ -172,10 +211,10 @@ def main():
                 break
 
         with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-            results = list(pool.map(extract, entries))
+            results = list(pool.map(lambda e: extract(e, url), entries))
 
         arts = []
-        for e, (body, why) in zip(entries, results):
+        for e, (body, why, author) in zip(entries, results):
             title = re.sub(r"\s+", " ", e.get("title", "Untitled")).strip()
             if body is None:
                 dropped += 1
@@ -186,6 +225,7 @@ def main():
                 "title": title,
                 "url": e.get("link"),
                 "date": e.get("published", ""),
+                "author": author,
                 "description": body,
             })
 

@@ -23,7 +23,7 @@ Extraction cannot run inside calibre, incidentally — calibre ships its own Pyt
 Everything lands in `~/kindle-news`, plus four systemd **user** units. No root, nothing outside your home directory.
 
 - `feeds.txt` — your sources, one `Name | URL` line each.
-- `extract.py` — reads the feeds, pulls each article down to its text, drops what fails.
+- `extract.py` — reads the feeds, pulls each article down to its text with the writer's name at the top, drops what fails.
 - `digest.recipe` — packaging only. calibre fetches nothing.
 - `fetch.sh` — runs both stages, then copies if the Kindle is plugged in.
 - `remind.sh` — optional [ntfy](https://ntfy.sh) nudge when an issue is waiting and the device is not connected.
@@ -71,10 +71,12 @@ The checker fetches the feed, counts the items, then puts three articles through
 
 ```
   feed OK: 100 items
-    ok    The intractable problems pulling modern Brit   11236c density 0.00
-    ok    Burnham's utilities fantasy                     5475c density 0.00
+    ok    The intractable problems pulling modern Brit   11236c density 0.00  by Charlie Bentley-Astor
+    ok    Are the directors all perverts?                 5632c density 0.00  by Robert Thicknesse
   GOOD    articles extract cleanly. Safe to add.
 ```
+
+Each line also shows the byline the article will carry, or `(no author)`, so you can see whether a source names its writers before you add it.
 
 It separates three failure modes, because only one is worth retrying:
 
@@ -85,6 +87,14 @@ It separates three failure modes, because only one is worth retrying:
 | `too short` | A paywall, or a feed of teasers rather than full pieces. |
 
 The second one is worth knowing about. A page can be 454KB, carry an `<article>` element and the right `<title>`, and still contain zero real paragraph nodes because all of them live inside `<script>` tags. Count DOM nodes, not string occurrences, before blaming your extractor.
+
+## Bylines
+
+Each article opens with its writer's name. Where that name comes from depends on the feed, because feeds disagree about what "author" means.
+
+A publisher's own feed names the writer, and does it better than the article page's metadata. Ars Technica's page declares only `ProPublica`; its feed says `Alec MacGillis, ProPublica`. So for articles on the feed's own site, the feed's author field is used.
+
+An aggregator's feed names the person who *submitted* the link. Hacker News reports a username; Lobsters reports `site.com via username`. Showing that as the author would be wrong. So for articles that live somewhere other than the feed's site, only the byline on the article page itself is used, and there is no fallback to the submitter. Where a page declares no author, the article carries none rather than a wrong one.
 
 ## Notifications
 
